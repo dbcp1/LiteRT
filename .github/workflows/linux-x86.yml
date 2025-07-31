@@ -81,6 +81,17 @@ jobs:
           echo "CACHE_RESTORE_KEY_HEAD=$CACHE_RESTORE_KEY_HEAD" >> "$GITHUB_OUTPUT"
           echo "CACHE_KEY=$CACHE_KEY" >> "$GITHUB_OUTPUT"
 
+          - name: Free Disk Space
+            uses: jlumbroso/free-disk-space@main
+            with:
+            # Set to 'true' to remove cached tools like Node.js, Python, etc.
+            tool-cache: false
+            # Set to 'true' to remove Android-related files
+            android: true
+            # Set to 'true' to remove .NET-related files
+            dotnet: true
+            # Add other options as needed
+
       - name: Clean build outputs if cache is being refreshed.
         if: env.REFRESH_CACHE == 'true'
         run: bazel clean --expunge
@@ -114,6 +125,9 @@ jobs:
           TENSORFLOW_SUBMODULE_COMMIT: ${{ inputs.TENSORFLOW_SUBMODULE_COMMIT }}
         run: |
           bash ci/run_bazel_test_with_docker.sh
+
+    #  - name: Prune Docker
+    #    run: docker system prune -af
 
       - name: Remove cache if cache is being refreshed.
         if: env.REFRESH_CACHE == 'true'
