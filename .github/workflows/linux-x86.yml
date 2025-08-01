@@ -1,23 +1,20 @@
 name: "linux-x86"
+
 on:
   push:
     tags:
-    - v*.*.*
+      - v*.*.*
   pull_request:
     branches:
-    - main
+      - main
   schedule:
-    - cron: "0 10 * * *"  # Run at 2am PST (10am UTC) every day to refresh the cache.
-  workflow_dispatch:  # Manual trigger
+    - cron: "0 10 * * *" # Run at 2am PST (10am UTC) every day to refresh the cache.
+  workflow_dispatch: # Manual trigger
     inputs:
       TENSORFLOW_SUBMODULE_COMMIT:
         description: 'The commit hash of the TensorFlow submodule to checkout. If empty, it will use the default.'
         type: string
         default: ''
-      REFRESH_CACHE:
-        description: 'Refresh cache to remove unused files'
-        type: boolean
-        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -28,20 +25,26 @@ jobs:
     name: "Presubmit"
     runs-on: ubuntu-22.04
     permissions:
-      actions: write  # For gh cache delete.
-      contents: write  # For gh release upload.
+      contents: read
     env:
-      GH_TOKEN: ${{ github.token }}  # For gh release upload.
-      REFRESH_CACHE: ${{ github.event_name == 'schedule' ||
-                         (github.event_name == 'workflow_dispatch' && inputs.REFRESH_CACHE) }}
+      TENSORFLOW_SUBMODULE_COMMIT: ${{ inputs.TENSORFLOW_SUBMODULE_COMMIT }}
+      
     steps:
+      # Step 1: Maximize disk space with a different, more reliable action
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+          # This action removes common, large pre-installed software
+          # that is often not needed by builds.
+          # You can customize these options as needed.
+          
+      # Step 2: Checkout your code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-
+          
+      # Step 3: Configure your submodule (this comes after checkout)
       - name: Configure TensorFlow Submodule Version
-        # This step handles both the specific commit override and the "latest HEAD" update.
         run: |
           SUBMODULE_PATH="third_party/tensorflow"
           TARGET_COMMIT="${{ inputs.TENSORFLOW_SUBMODULE_COMMIT }}"
@@ -51,49 +54,23 @@ jobs:
             echo "Attempting to checkout specific commit '$TARGET_COMMIT' for $SUBMODULE_PATH..."
             cd "$SUBMODULE_PATH" || { echo "Error: Could not navigate to $SUBMODULE_PATH"; exit 1; }
             git checkout "$TARGET_COMMIT" || { echo "Error: Failed to checkout $TARGET_COMMIT."; exit 1; }
-            cd - > /dev/null # Go back to the original directory (main repo root)
+            cd - > /dev/null
             echo "Successfully checked out $SUBMODULE_PATH to $TARGET_COMMIT."
           else
             echo "--- Updating to Latest HEAD ---"
             echo "No specific commit provided. Updating $SUBMODULE_PATH to its remote HEAD..."
-            # This fetches the latest from the submodule's default branch (e.g., 'main' or 'master')
-            # and checks it out, but does NOT create a commit in your main repository.
             git submodule update --remote "$SUBMODULE_PATH" || { echo "Error: Failed to update $SUBMODULE_PATH to remote HEAD."; exit 1; }
             echo "Successfully updated $SUBMODULE_PATH to its latest HEAD."
           fi
-          # Display the final commit of the TensorFlow submodule
           echo "Current TensorFlow submodule commit: $(cd $SUBMODULE_PATH && git rev-parse HEAD)"
 
-      # Note: The original "Display submodule commit" step is now integrated into the step above.
-
-          - name: Free Disk Space
-            uses: jlumbroso/free-disk-space@main
-            with:
-            # Set to 'true' to remove cached tools like Node.js, Python, etc.
-            tool-cache: false
-            # Set to 'true' to remove Android-related files
-            android: true
-            # Set to 'true' to remove .NET-related files
-            dotnet: true
-            # Add other options as needed
-
-      - name: Clean build outputs if cache is being refreshed.
-        if: env.REFRESH_CACHE == 'true'
-        run: bazel clean --expunge
-
-
-      - name: Run bazel script
-        env:
-          # This env var is typically used if your script needs to know the commit
-          # It's set from the workflow_dispatch input, but the *actual* checkout
-          # is handled by the "Configure TensorFlow Submodule Version" step.
-          TENSORFLOW_SUBMODULE_COMMIT: ${{ inputs.TENSORFLOW_SUBMODULE_COMMIT }}
+      # Step 4: Run your tests
+      - name: Run bazel tests in Docker
         run: |
+          echo "--- Checking disk space before tests ---"
+          df -h
+          
           bash ci/run_bazel_test_with_docker.sh
-
-    #  - name: Prune Docker
-    #    run: docker system prune -af
-
-      
-
-     
+          
+          echo "--- Checking disk space after tests ---"
+          df -h
