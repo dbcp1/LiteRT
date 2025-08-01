@@ -66,21 +66,6 @@ jobs:
 
       # Note: The original "Display submodule commit" step is now integrated into the step above.
 
-      - name : Set up cache keys
-        id: cache-keys
-        run: |
-          CACHE_RESTORE_KEY_2="${{ github.workflow }}"
-          CACHE_RESTORE_KEY_1="$CACHE_RESTORE_KEY_2-${{ hashFiles('**/WORKSPACE', '**/.bazelrc') }}"
-          CACHE_RESTORE_KEY_0="$CACHE_RESTORE_KEY_1-${{ hashFiles('**/BUILD*') }}"
-          # If it's not a pull request, then it will be the same as $CACHE_RESTORE_KEY_1-.
-          CACHE_RESTORE_KEY_HEAD="$CACHE_RESTORE_KEY_0-${{ github.event.pull_request.base.sha }}"
-          CACHE_KEY="$CACHE_RESTORE_KEY_0-${{ github.sha }}"
-          echo "CACHE_RESTORE_KEY_2=$CACHE_RESTORE_KEY_2" >> "$GITHUB_OUTPUT"
-          echo "CACHE_RESTORE_KEY_1=$CACHE_RESTORE_KEY_1" >> "$GITHUB_OUTPUT"
-          echo "CACHE_RESTORE_KEY_0=$CACHE_RESTORE_KEY_0" >> "$GITHUB_OUTPUT"
-          echo "CACHE_RESTORE_KEY_HEAD=$CACHE_RESTORE_KEY_HEAD" >> "$GITHUB_OUTPUT"
-          echo "CACHE_KEY=$CACHE_KEY" >> "$GITHUB_OUTPUT"
-
           - name: Free Disk Space
             uses: jlumbroso/free-disk-space@main
             with:
@@ -96,26 +81,6 @@ jobs:
         if: env.REFRESH_CACHE == 'true'
         run: bazel clean --expunge
 
-      - name: Restore bazel cache if cache is not being refreshed.
-        id: bazel-cache
-        if: env.REFRESH_CACHE != 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cache/bazel-linux
-            ~/.cache/bazel-android
-          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
-          restore-keys: |
-            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_HEAD }}
-            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_0 }}-
-            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_1 }}-
-            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_2 }}-
-
-      - name: Check cache hit
-        run: |
-          echo "Cache Hit: ${{ steps.bazel-cache.outputs.cache-hit }}"
-          echo "Cache Primary Key: ${{ steps.bazel-cache.outputs.cache-primary-key }}"
-          echo "Cache Matched Key: ${{ steps.bazel-cache.outputs.cache-matched-key }}"
 
       - name: Run bazel script
         env:
@@ -129,16 +94,6 @@ jobs:
     #  - name: Prune Docker
     #    run: docker system prune -af
 
-      - name: Remove cache if cache is being refreshed.
-        if: env.REFRESH_CACHE == 'true'
-        continue-on-error: true  # Ignore errors when cache is not found.
-        run: gh cache delete ${{ steps.cache-keys.outputs.CACHE_KEY }}
+      
 
-      - name: Save bazel cache if it's new or being refreshed.
-        uses: actions/cache/save@v4
-        if: env.REFRESH_CACHE == 'true' || steps.bazel-cache.outputs.cache-hit != 'true'
-        with:
-          path: |
-            ~/.cache/bazel-linux
-            ~/.cache/bazel-android
-          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
+     
