@@ -95,6 +95,7 @@ litert_dynamic_lib(
         "//platforms/darwinn/tests/sdk_3p/litert_tools:__subpackages__",
     ],
     deps = [
+        ":litert_darwinn_runtime_options",
         "@com_google_absl//absl/algorithm:container",
         "//litert/c/internal:litert_scheduling_info",
         "@com_google_absl//absl/base:no_destructor",
@@ -112,9 +113,9 @@ litert_dynamic_lib(
         # TODO: Remove this dependency.
         "//litert/core/util:tensor_type_util",
         "//litert/vendors/c:litert_dispatch_c_api",
+        "//litert/cc/internal:litert_handle",
         "//litert/cc/dynamic_runtime:litert_opaque_options",
         "//litert/cc/dynamic_runtime:litert_options",
-        "//litert/cc/dynamic_runtime/options:litert_darwinn_options",
         "//litert/vendors/cc:options_helper",
     ],
 )
@@ -201,16 +202,30 @@ litert_device_test(
     ],
 )
 
-cc_test(
-    name = "darwinn_options_test",
-    srcs = ["darwinn_options_test.cc"],
+cc_library(
+    name = "litert_darwinn_runtime_options",
+    srcs = ["litert_darwinn_runtime_options.cc"],
+    hdrs = ["litert_darwinn_runtime_options.h"],
     deps = [
+        "//litert/c:litert_common",
+        "//litert/cc:litert_macros",
+        "//litert/core:litert_toml_parser",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "darwinn_runtime_options_test",
+    srcs = ["darwinn_runtime_options_test.cc"],
+    deps = [
+        ":litert_darwinn_runtime_options",
         "//litert/c:litert_runtime_c_api_shared_lib",
         "//litert/cc:litert_expected",
         "//litert/cc/dynamic_runtime:litert_opaque_options",
         "//litert/cc/dynamic_runtime:litert_options",
-        "//litert/cc/dynamic_runtime/options:litert_darwinn_options",
         "//litert/cc/internal:litert_handle",
+        "//litert/cc/options/google:litert_darwinn_runtime_options",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest_main",
     ],
 )
